@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="g2" x1="0" y1="0" x2="1280" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#121829"/>
+      <stop offset="1" stop-color="#080b14"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g2)"/>
+  <circle cx="640" cy="360" r="70" fill="rgba(34,211,238,0.12)" stroke="rgba(34,211,238,0.5)" stroke-width="2"/>
+  <path d="M620 325 L680 360 L620 395 Z" fill="#3ce7ff"/>
+  <text x="640" y="500" fill="#475569" font-family="sans-serif" font-size="28" text-anchor="middle">Placeholder video 2</text>
+</svg>
