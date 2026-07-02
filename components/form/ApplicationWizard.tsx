@@ -4,17 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, type FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertCircle, ArrowLeft } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { Stepper } from "./Stepper";
-import {
-  StepContact,
-  StepEligibility,
-  StepDocuments,
-  StepCall,
-} from "./steps";
+import { StepContact, StepQualification, StepSchedule } from "./steps";
 import { SuccessState } from "./SuccessState";
 import { IneligibleState } from "./IneligibleState";
 import {
@@ -22,17 +17,39 @@ import {
   emptyApplication,
   type ApplicationData,
 } from "@/lib/validation";
-import { formatUsPhone } from "@/lib/utils";
+import { evaluateEligibility, type RejectionKind } from "@/lib/eligibility";
+import { flags, formMeta } from "@/lib/config";
+import { formatUsPhone, scrollToApply } from "@/lib/utils";
 import { newEventId, trackSubscribe } from "@/lib/meta-pixel";
 
-const DRAFT_KEY = "apex-application-draft-v1";
-const STEP_LABELS = ["Contact", "Eligibility", "Documents", "Schedule"];
+const DRAFT_KEY = "apex-application-draft-v4";
 
-// Fields validated per step before advancing.
+/** Only restore contact fields from draft — avoids stale qualification answers blocking progress. */
+const DRAFT_RESTORE_KEYS: (keyof ApplicationData)[] = [
+  "firstName",
+  "lastName",
+  "email",
+  "phone",
+  "state",
+  "telegram",
+  "referralSource",
+];
+const STEP_LABELS = [...formMeta.steps];
+
 const STEP_FIELDS: FieldPath<ApplicationData>[][] = [
-  ["firstName", "lastName", "email", "phone", "state", "preferredContact", "referralSource", "website"],
-  ["ageRange", "creditRange", "incomeRange", "experience", "callAvailability", "usResident", "accurateInfo"],
-  ["idReady", "addressReady", "bankStatementsReady", "taxDocsReady", "entityDocsReady", "consentReview", "consentPrivacy", "acknowledgeNoGuarantee"],
+  ["firstName", "lastName", "email", "phone", "state", "telegram", "referralSource", "website"],
+  [
+    "creditRange",
+    "incomeRange",
+    "ageRange",
+    "merchantAccount",
+    "bankruptcyLiens",
+    "convictedFelony",
+    "priorIboProgram",
+    "resellerInHousehold",
+    "bankStatements",
+    "dailyCommitment",
+  ],
   ["callSlotId"],
 ];
 
@@ -43,11 +60,14 @@ export function ApplicationWizard() {
   const [step, setStep] = useState(0);
   const [status, setStatus] = useState<Status>("form");
   const [applicationId, setApplicationId] = useState("");
-  const [waitlisted, setWaitlisted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [rejectionKind, setRejectionKind] = useState<RejectionKind>("credit");
+  const [failedCriterion, setFailedCriterion] = useState<string | undefined>();
   const [direction, setDirection] = useState(1);
   const submittedRef = useRef(false);
   const errorRef = useRef<HTMLDivElement>(null);
+  const prevStepRef = useRef(0);
+  const prevStatusRef = useRef<Status>("form");
 
   const {
     register,
@@ -64,40 +84,35 @@ export function ApplicationWizard() {
     mode: "onBlur",
   });
 
-  // ── Restore draft from localStorage on mount ──────────────────────────
   useEffect(() => {
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as Partial<ApplicationData>;
-      // Only restore known keys; never trust shape blindly.
-      (Object.keys(emptyApplication) as (keyof ApplicationData)[]).forEach((k) => {
+      DRAFT_RESTORE_KEYS.forEach((k) => {
         if (parsed[k] !== undefined) {
           setValue(k, parsed[k] as never, { shouldValidate: false });
         }
       });
       toast({ type: "info", title: "Draft restored", message: "We saved your progress." });
     } catch {
-      // Corrupt draft — clear it silently.
       localStorage.removeItem(DRAFT_KEY);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Persist draft on change (excludes honeypot) ───────────────────────
   useEffect(() => {
     const sub = watch((values) => {
       try {
         const { website: _hp, ...safe } = values;
         localStorage.setItem(DRAFT_KEY, JSON.stringify(safe));
       } catch {
-        /* storage full / unavailable — non-fatal */
+        /* non-fatal */
       }
     });
     return () => sub.unsubscribe();
   }, [watch]);
 
-  // Phone formatting as the user types.
   const phoneValue = watch("phone");
   useEffect(() => {
     const formatted = formatUsPhone(phoneValue ?? "");
@@ -106,7 +121,18 @@ export function ApplicationWizard() {
     }
   }, [phoneValue, setValue]);
 
-  const callSlotId = watch("callSlotId");
+  useEffect(() => {
+    const stepChanged = prevStepRef.current !== step;
+    const statusChanged = prevStatusRef.current !== status;
+    prevStepRef.current = step;
+    prevStatusRef.current = status;
+
+    if (stepChanged && step > 0) {
+      scrollToApply();
+    } else if (statusChanged && (status === "success" || status === "ineligible")) {
+      scrollToApply();
+    }
+  }, [step, status]);
 
   const focusErrorSummary = useCallback(() => {
     window.requestAnimationFrame(() => errorRef.current?.focus());
@@ -118,6 +144,18 @@ export function ApplicationWizard() {
       focusErrorSummary();
       return;
     }
+
+    if (step === 1 && flags.enableEligibilityGate) {
+      const values = getValues();
+      const outcome = evaluateEligibility(values);
+      if (!outcome.eligible) {
+        setRejectionKind(outcome.rejectionKind ?? "credit");
+        setFailedCriterion(outcome.failedCriterion);
+        setStatus("ineligible");
+        return;
+      }
+    }
+
     setDirection(1);
     setStep((s) => Math.min(s + 1, STEP_LABELS.length - 1));
   }
@@ -127,74 +165,100 @@ export function ApplicationWizard() {
     setStep((s) => Math.max(s - 1, 0));
   }
 
-  async function onSubmit(data: ApplicationData) {
-    if (submittedRef.current || submitting) return; // duplicate guard
-    setSubmitting(true);
-    // Shared id so the browser Pixel event and the server Conversions API
-    // event are deduplicated by Meta into a single conversion.
-    const metaEventId = newEventId();
-    try {
-      const res = await fetch("/api/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...data,
-          submittedAt: new Date().toISOString(),
-          metaEventId,
-        }),
-      });
-
-      const payload = (await res.json().catch(() => ({}))) as {
-        applicationId?: string;
-        eligible?: boolean;
-        error?: string;
-        fieldErrors?: Record<string, string>;
-      };
-
-      if (res.status === 429) {
-        toast({ type: "error", title: "Too many attempts", message: "Please wait a few minutes and try again." });
-        return;
-      }
-      if (res.status === 400) {
-        toast({ type: "error", title: "Please review your answers", message: payload.error ?? "Some fields need attention." });
-        focusErrorSummary();
-        return;
-      }
-      if (!res.ok) {
-        toast({ type: "error", title: "Something went wrong", message: "Please try again shortly." });
-        return;
-      }
-
-      // Success path
-      submittedRef.current = true;
-      localStorage.removeItem(DRAFT_KEY);
-
-      if (payload.eligible === false) {
-        setStatus("ineligible");
-        return;
-      }
-      setApplicationId(payload.applicationId ?? "");
-      setStatus("success");
-      // Fire the Meta Pixel Subscribe event (browser side). The server fires
-      // the matching Conversions API event with the same id for dedupe.
-      trackSubscribe({ eventId: metaEventId });
-      toast({ type: "success", title: "Application submitted" });
-    } catch {
-      toast({ type: "error", title: "Network error", message: "Check your connection and try again." });
-    } finally {
-      setSubmitting(false);
-    }
+  function startOver() {
+    submittedRef.current = false;
+    setRejectionKind("credit");
+    setFailedCriterion(undefined);
+    setStatus("form");
+    setStep(0);
+    reset(emptyApplication);
+    localStorage.removeItem(DRAFT_KEY);
   }
 
-  // Flatten errors for the summary box (current step only).
+  const onSubmit = useCallback(
+    async (data: ApplicationData) => {
+      if (submittedRef.current || submitting) return;
+      setSubmitting(true);
+      // Shared id so the browser Pixel event and the server Conversions API
+      // event are deduplicated by Meta into a single conversion.
+      const metaEventId = newEventId();
+      try {
+        const res = await fetch("/api/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...data, submittedAt: new Date().toISOString(), metaEventId }),
+        });
+
+        const payload = (await res.json().catch(() => ({}))) as {
+          applicationId?: string;
+          eligible?: boolean;
+          error?: string;
+        };
+
+        if (res.status === 429) {
+          toast({ type: "error", title: "Too many attempts", message: "Please wait a few minutes." });
+          return;
+        }
+        if (res.status === 400) {
+          toast({ type: "error", title: "Please review your answers", message: payload.error });
+          focusErrorSummary();
+          return;
+        }
+        if (!res.ok) {
+          toast({ type: "error", title: "Something went wrong", message: "Please try again shortly." });
+          return;
+        }
+
+        submittedRef.current = true;
+        localStorage.removeItem(DRAFT_KEY);
+
+        if (payload.eligible === false) {
+          const live = evaluateEligibility(getValues());
+          setRejectionKind(live.rejectionKind ?? "credit");
+          setFailedCriterion(live.failedCriterion);
+          setStatus("ineligible");
+          return;
+        }
+        setApplicationId(payload.applicationId ?? "");
+        setStatus("success");
+        // Fire the Meta Pixel Subscribe event (browser side). The server fires
+        // the matching Conversions API event with the same id for dedupe.
+        trackSubscribe({ eventId: metaEventId });
+        toast({ type: "success", title: "Application submitted" });
+      } catch {
+        toast({ type: "error", title: "Network error", message: "Check your connection and try again." });
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [focusErrorSummary, getValues, submitting, toast],
+  );
+
+  const handleCalendlyScheduled = useCallback(
+    ({ uri, startTime }: { uri: string; startTime?: string }) => {
+      if (submittedRef.current || submitting) return;
+      setValue("callSlotId", uri, { shouldValidate: true });
+      setValue("calendlyStartTime", startTime ?? "", { shouldValidate: false });
+      const data = getValues();
+      void onSubmit({
+        ...data,
+        callSlotId: uri,
+        calendlyStartTime: startTime ?? "",
+      });
+    },
+    [getValues, onSubmit, setValue, submitting],
+  );
+
   const stepErrors = STEP_FIELDS[step]
     .map((f) => errors[f]?.message)
     .filter(Boolean) as string[];
 
+  const firstName = watch("firstName");
+
   if (status === "success") {
     return (
       <div className="glass-strong border-gradient p-6 sm:p-10">
-        <SuccessState applicationId={applicationId} />
+        <SuccessState applicationId={applicationId} firstName={firstName} />
       </div>
     );
   }
@@ -203,12 +267,9 @@ export function ApplicationWizard() {
     return (
       <div className="glass-strong border-gradient p-6 sm:p-10">
         <IneligibleState
-          waitlisted={waitlisted}
-          onJoinWaitlist={() => {
-            setWaitlisted(true);
-            // TODO: POST to a waitlist endpoint / CRM here.
-            toast({ type: "success", title: "Added to waitlist" });
-          }}
+          rejectionKind={rejectionKind}
+          failedCriterion={failedCriterion}
+          onStartOver={startOver}
         />
       </div>
     );
@@ -218,9 +279,23 @@ export function ApplicationWizard() {
 
   return (
     <div className="glass-strong border-gradient p-5 sm:p-8">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-xs font-medium text-slate-500">
+          Step {step + 1} of {STEP_LABELS.length} · {STEP_LABELS[step]}
+        </p>
+        {step > 0 && (
+          <button
+            type="button"
+            onClick={back}
+            className="text-xs font-medium text-slate-500 transition-colors hover:text-ink-950"
+          >
+            ← Back
+          </button>
+        )}
+      </div>
+
       <Stepper steps={STEP_LABELS} current={step} />
 
-      {/* Error summary */}
       <AnimatePresence>
         {stepErrors.length > 0 && (
           <motion.div
@@ -230,15 +305,15 @@ export function ApplicationWizard() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-6 overflow-hidden rounded-xl border border-rose-400/30 bg-rose-500/10 outline-none"
+            className="mt-6 overflow-hidden rounded-xl border border-rose-200 bg-rose-50 outline-none"
           >
             <div className="flex gap-3 p-4">
-              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-400" />
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" />
               <div>
-                <p className="text-sm font-semibold text-rose-200">
-                  Please fix the following before continuing:
+                <p className="text-sm font-semibold text-rose-800">
+                  Please fill in the highlighted fields
                 </p>
-                <ul className="mt-1 list-inside list-disc text-xs text-rose-300/90">
+                <ul className="mt-1 list-inside list-disc text-xs text-rose-700">
                   {stepErrors.map((e, i) => (
                     <li key={i}>{e}</li>
                   ))}
@@ -261,42 +336,27 @@ export function ApplicationWizard() {
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
               {step === 0 && <StepContact register={register} errors={errors} />}
-              {step === 1 && <StepEligibility register={register} errors={errors} />}
-              {step === 2 && <StepDocuments register={register} errors={errors} />}
-              {step === 3 && (
-                <StepCall
-                  selected={callSlotId}
-                  onSelect={(id) => setValue("callSlotId", id, { shouldValidate: true })}
+              {step === 1 && <StepQualification register={register} errors={errors} />}
+              {step === 2 && (
+                <StepSchedule
+                  name={`${watch("firstName")} ${watch("lastName")}`.trim()}
+                  email={watch("email")}
+                  onScheduled={handleCalendlyScheduled}
                   error={errors.callSlotId?.message}
+                  submitting={submitting}
                 />
               )}
             </motion.div>
           </AnimatePresence>
         </div>
 
-        <div className="mt-8 flex items-center justify-between gap-3">
-          <Button
-            type="button"
-            variant="ghost"
-            magnetic={false}
-            onClick={back}
-            disabled={step === 0 || submitting}
-            className={step === 0 ? "invisible" : ""}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-
-          {!isLast ? (
+        {!isLast && (
+          <div className="mt-8 flex justify-end">
             <Button type="button" onClick={next}>
-              Continue
+              Continue →
             </Button>
-          ) : (
-            <Button type="submit" loading={submitting} disabled={submitting}>
-              {submitting ? "Submitting…" : "Submit application"}
-            </Button>
-          )}
-        </div>
+          </div>
+        )}
       </form>
     </div>
   );

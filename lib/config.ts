@@ -20,10 +20,22 @@ export const brand = {
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://apexprocess.example.com",
 } as const;
 
+/** Calendly inline embed — set NEXT_PUBLIC_CALENDLY_URL in Vercel / .env.local */
+const CALENDLY_DEMO_URL = "https://calendly.com/calendly/30min";
+
+export const calendlyUrl =
+  process.env.NEXT_PUBLIC_CALENDLY_URL?.trim() ||
+  (process.env.NODE_ENV === "development" ? CALENDLY_DEMO_URL : "");
+
 export const cta = {
   primary: "Start Application",
   secondary: "See the Process",
   formStart: "Begin Eligibility Review",
+} as const;
+
+export const formMeta = {
+  waitlistCohort: "Q4 2026 waitlist",
+  steps: ["Eligibility", "Qualification", "Schedule"] as const,
 } as const;
 
 /**
@@ -142,68 +154,38 @@ export const formOptions = {
     "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
     "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
   ],
-  contactMethods: ["Email", "Phone", "Text"],
   referralSources: [
-    "Search engine",
-    "Social media",
-    "Referral from a friend",
-    "Online advertisement",
-    "Industry event",
+    "Meta (Facebook / Instagram) ad",
+    "Google search",
+    "TikTok",
+    "Referral from a partner",
+    "Organic search / article",
+    "Podcast or YouTube",
     "Other",
   ],
-  ageRanges: ["18–24", "25–34", "35–44", "45–54", "55–64", "65+"],
-  creditRanges: [
-    "Below 580",
-    "580–669",
-    "670–739",
-    "740–799",
-    "800+",
-    "Not sure",
+  ageRanges: ["21 – 35", "36 – 50", "51 – 69", "Over 69"],
+  creditRanges: ["Below 600", "600 - 650", "650 - 679", "680 - 719", "720+"],
+  incomeRanges: ["Below $25K", "$25K – $50K", "$50K – $100K", "$100K+"],
+  merchantAccount: [
+    "No, never",
+    "Yes, but closed",
+    "Yes, currently active",
   ],
-  incomeRanges: [
-    "Under $50k",
-    "$50k–$99k",
-    "$100k–$149k",
-    "$150k–$249k",
-    "$250k+",
-    "Prefer not to say",
+  yesNo: ["No", "Yes"],
+  bankStatements: [
+    "Yes, account is active with recent transactions",
+    "No, account is dormant / inactive",
+    "No, less than 3 months of history",
   ],
-  experienceLevels: [
-    "None yet",
-    "Some experience",
-    "Experienced",
-    "Currently operating",
-  ],
-  callAvailability: [
-    "Weekday mornings",
-    "Weekday afternoons",
-    "Weekday evenings",
-    "Weekends",
-    "Flexible",
-  ],
-  readiness: ["Yes, ready now", "Can get it soon", "Not yet"],
+  dailyCommitment: ["Yes, anytime", "Yes, evenings only", "No"],
 } as const;
 
 /**
- * Configurable eligibility gate. When flags.enableEligibilityGate is on, the
- * wizard routes applicants whose answers fall entirely in these buckets to a
- * respectful waitlist state. Intentionally lenient and easy to tune.
- * TODO: align these with your real, lawful, non-discriminatory criteria.
+ * Configurable eligibility gate — see lib/eligibility.ts for rules.
  */
 export const eligibilityRules = {
-  // Treated as "not a fit right now" only when BOTH are true.
-  waitlistIfCreditBelow580AndNoExperience: true,
+  enabled: true,
 } as const;
-
-/** ── Discovery call dummy slots (replace with Calendly embed) ──────────── */
-export const callSlots = [
-  { id: "slot-1", label: "Tomorrow · 10:00 AM ET" },
-  { id: "slot-2", label: "Tomorrow · 2:30 PM ET" },
-  { id: "slot-3", label: "In 2 days · 11:15 AM ET" },
-  { id: "slot-4", label: "In 2 days · 4:00 PM ET" },
-  { id: "slot-5", label: "In 3 days · 9:30 AM ET" },
-  { id: "slot-6", label: "In 3 days · 1:00 PM ET" },
-] as const;
 
 /** ── Documents (sample, counsel-review-required) ───────────────────────── */
 export const documents = [

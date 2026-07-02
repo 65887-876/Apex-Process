@@ -3,8 +3,8 @@
 import { motion } from "framer-motion";
 import { CheckCircle2, Copy, FileSearch, FileText, Phone, ScrollText } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import { timeline } from "@/lib/config";
 
 const nextSteps = [
   { icon: CheckCircle2, label: "Application received", done: true },
@@ -14,7 +14,13 @@ const nextSteps = [
   { icon: ScrollText, label: "Agreement & legal review", done: false },
 ];
 
-export function SuccessState({ applicationId }: { applicationId: string }) {
+export function SuccessState({
+  applicationId,
+  firstName,
+}: {
+  applicationId: string;
+  firstName?: string;
+}) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
@@ -34,69 +40,64 @@ export function SuccessState({ applicationId }: { applicationId: string }) {
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col items-center text-center"
+      className="flex flex-col items-center py-4 text-center"
     >
       <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ delay: 0.15, type: "spring", stiffness: 200, damping: 14 }}
-        className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-400"
+        className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"
       >
         <CheckCircle2 className="h-9 w-9" />
       </motion.div>
 
-      <h3 className="text-2xl font-semibold text-white sm:text-3xl">Application received</h3>
-      <p className="mt-3 max-w-md text-slate-400">
-        Thank you. We&apos;ve received your application and will review it against
-        our published criteria, typically within {timeline.reviewWindowHours} hours.
-        Keep your reference number handy.
+      <h3 className="text-2xl font-semibold text-ink-950 sm:text-3xl">
+        Application received.
+      </h3>
+      <p className="mt-3 max-w-md text-slate-600">
+        Welcome{firstName ? `, ${firstName}` : ""}. We&apos;ll review your file and reply within{" "}
+        <strong className="font-semibold text-ink-950">48 hours</strong>. If approved, you&apos;ll
+        get a calendar confirmation and next steps by email.
       </p>
 
-      <div className="mt-6 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-        <span className="font-mono text-lg tracking-wider text-cyan">
+      <div className="mt-6 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <span className="font-mono text-lg tracking-wider text-emerald-700">
           {applicationId}
         </span>
         <button
+          type="button"
           onClick={copyId}
-          className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
+          className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-200 hover:text-ink-950"
           aria-label="Copy reference number"
         >
           <Copy className="h-4 w-4" />
         </button>
       </div>
       {copied && (
-        <span className="mt-1 text-xs text-emerald-400">Copied to clipboard</span>
+        <p className="mt-2 text-xs text-emerald-600">Copied to clipboard</p>
       )}
 
-      <div className="mt-10 w-full max-w-md text-left">
-        <p className="mb-4 text-sm font-medium uppercase tracking-wider text-slate-400">
-          What happens next
-        </p>
-        <ol className="space-y-3">
-          {nextSteps.map((step, i) => (
-            <motion.li
-              key={step.label}
-              initial={{ opacity: 0, x: -12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 + i * 0.08 }}
-              className="flex items-center gap-3"
-            >
-              <span
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                  step.done
-                    ? "bg-emerald-400/15 text-emerald-400"
-                    : "bg-white/5 text-slate-500"
-                }`}
-              >
-                <step.icon className="h-4 w-4" />
-              </span>
-              <span className={step.done ? "text-white" : "text-slate-400"}>
-                {step.label}
-              </span>
-            </motion.li>
-          ))}
-        </ol>
-      </div>
+      <ul className="mt-8 w-full max-w-sm space-y-2 text-left">
+        {nextSteps.map((step) => (
+          <li
+            key={step.label}
+            className="flex items-center gap-3 rounded-lg border border-slate-100 bg-white px-3 py-2.5 text-sm"
+          >
+            <step.icon
+              className={
+                step.done ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-slate-400"
+              }
+            />
+            <span className={step.done ? "text-ink-950" : "text-slate-500"}>
+              {step.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-8 max-w-md text-xs leading-relaxed text-slate-500">
+        Submitting an application does not guarantee approval or any financial outcome.
+      </p>
     </motion.div>
   );
 }

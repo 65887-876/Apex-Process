@@ -47,3 +47,22 @@ export function stableHash(input: string): string {
   }
   return (h >>> 0).toString(36);
 }
+
+/** Scroll to the application form (respects `#apply` scroll-margin). */
+export function scrollToApply(behavior: ScrollBehavior = "smooth") {
+  const el = document.getElementById("apply");
+  if (!el) return;
+  el.scrollIntoView({ behavior, block: "start" });
+  if (window.location.hash !== "#apply") {
+    window.history.replaceState(null, "", "#apply");
+  }
+}
+
+/** True when the form card is comfortably visible — used to hide duplicate mobile CTAs. */
+export function isApplyFormInView(): boolean {
+  const el = document.getElementById("apply");
+  if (!el) return false;
+  const rect = el.getBoundingClientRect();
+  const header = 96;
+  return rect.top < window.innerHeight - 120 && rect.bottom > header;
+}

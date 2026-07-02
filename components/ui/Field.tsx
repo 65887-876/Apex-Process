@@ -2,6 +2,7 @@
 
 import { forwardRef, useId } from "react";
 import { cn } from "@/lib/utils";
+import { useFormTheme } from "@/components/form/FormTheme";
 
 interface FieldWrapProps {
   label: string;
@@ -22,19 +23,32 @@ export function Field({
   className,
   children,
 }: FieldWrapProps) {
+  const theme = useFormTheme();
+  const light = theme === "light";
+
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={htmlFor} className="text-sm font-medium text-slate-200">
+      <label
+        htmlFor={htmlFor}
+        className={cn(
+          "text-sm font-medium",
+          light ? "text-slate-700" : "text-slate-200",
+        )}
+      >
         {label}
         {required && <span className="ml-0.5 text-cyan">*</span>}
       </label>
       {children}
-      {hint && !error && <p className="text-xs text-slate-500">{hint}</p>}
+      {hint && !error && (
+        <p className={cn("text-xs", light ? "text-slate-500" : "text-slate-400")}>
+          {hint}
+        </p>
+      )}
       {error && (
         <p
           id={`${htmlFor}-error`}
           role="alert"
-          className="text-xs font-medium text-rose-400"
+          className="text-xs font-medium text-rose-500"
         >
           {error}
         </p>
@@ -43,26 +57,38 @@ export function Field({
   );
 }
 
-const baseControl =
-  "w-full rounded-xl border bg-white/[0.03] px-4 text-[15px] text-white placeholder:text-slate-500 transition-all duration-200 outline-none";
-const controlState = (hasError?: boolean) =>
-  hasError
-    ? "border-rose-400/60 focus:border-rose-400 focus:shadow-[0_0_0_3px_rgba(244,63,94,0.18)]"
-    : "border-white/15 focus:border-cyan focus:shadow-[0_0_0_3px_rgba(34,211,238,0.18)]";
+function useControlStyles(hasError?: boolean) {
+  const light = useFormTheme() === "light";
+
+  const base = light
+    ? "w-full rounded-xl border bg-white px-4 text-[15px] text-slate-900 placeholder:text-slate-400 transition-all duration-200 outline-none"
+    : "w-full rounded-xl border bg-ink-800/60 px-4 text-[15px] text-white placeholder:text-slate-500 transition-all duration-200 outline-none";
+
+  const state = hasError
+    ? "border-rose-400 focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20"
+    : light
+      ? "border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+      : "border-white/10 focus:border-cyan/70 focus:ring-2 focus:ring-cyan/20";
+
+  return { base, state };
+}
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   hasError?: boolean;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, hasError, ...props }, ref) => (
-    <input
-      ref={ref}
-      aria-invalid={hasError || undefined}
-      className={cn(baseControl, "h-12", controlState(hasError), className)}
-      {...props}
-    />
-  ),
+  ({ className, hasError, ...props }, ref) => {
+    const { base, state } = useControlStyles(hasError);
+    return (
+      <input
+        ref={ref}
+        aria-invalid={hasError || undefined}
+        className={cn(base, "h-12", state, className)}
+        {...props}
+      />
+    );
+  },
 );
 Input.displayName = "Input";
 
@@ -73,42 +99,46 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, hasError, options, placeholder, ...props }, ref) => (
-    <div className="relative">
-      <select
-        ref={ref}
-        aria-invalid={hasError || undefined}
-        className={cn(
-          baseControl,
-          "h-12 appearance-none pr-10",
-          controlState(hasError),
-          className,
-        )}
-        {...props}
-      >
-        {placeholder && (
-          <option value="" disabled>
-            {placeholder}
-          </option>
-        )}
-        {options.map((opt) => (
-          <option key={opt} value={opt} className="bg-ink-900 text-white">
-            {opt}
-          </option>
-        ))}
-      </select>
-      <svg
-        aria-hidden
-        viewBox="0 0 20 20"
-        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
-  ),
+  ({ className, hasError, options, placeholder, ...props }, ref) => {
+    const { base, state } = useControlStyles(hasError);
+    const light = useFormTheme() === "light";
+
+    return (
+      <div className="relative">
+        <select
+          ref={ref}
+          aria-invalid={hasError || undefined}
+          className={cn(base, "h-12 appearance-none pr-10", state, className)}
+          {...props}
+        >
+          {placeholder && (
+            <option value="" disabled>
+              {placeholder}
+            </option>
+          )}
+          {options.map((opt) => (
+            <option
+              key={opt}
+              value={opt}
+              className={light ? "bg-white text-slate-900" : "bg-ink-800 text-white"}
+            >
+              {opt}
+            </option>
+          ))}
+        </select>
+        <svg
+          aria-hidden
+          viewBox="0 0 20 20"
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+    );
+  },
 );
 Select.displayName = "Select";
 
@@ -122,11 +152,16 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
   ({ className, label, error, id, ...props }, ref) => {
     const generatedId = useId();
     const inputId = id ?? generatedId;
+    const light = useFormTheme() === "light";
+
     return (
       <div className="flex flex-col gap-1">
         <label
           htmlFor={inputId}
-          className="group flex cursor-pointer items-start gap-3 text-sm text-slate-300"
+          className={cn(
+            "group flex cursor-pointer items-start gap-3 text-sm",
+            light ? "text-slate-700" : "text-slate-300",
+          )}
         >
           <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
             <input
@@ -134,7 +169,10 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
               id={inputId}
               type="checkbox"
               aria-invalid={!!error || undefined}
-              className="peer absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-md border border-white/20 bg-white/[0.03] transition-all checked:border-cyan checked:bg-cyan/20 focus-visible:ring-2 focus-visible:ring-cyan/70"
+              className={cn(
+                "peer absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-md border transition-all checked:border-cyan checked:bg-cyan/20 focus-visible:ring-2 focus-visible:ring-cyan/70",
+                light ? "border-slate-300 bg-white" : "border-white/20 bg-ink-800",
+              )}
               {...props}
             />
             <svg
@@ -155,7 +193,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
           <span className="leading-relaxed">{label}</span>
         </label>
         {error && (
-          <p role="alert" className="ml-8 text-xs font-medium text-rose-400">
+          <p role="alert" className="ml-8 text-xs font-medium text-rose-500">
             {error}
           </p>
         )}

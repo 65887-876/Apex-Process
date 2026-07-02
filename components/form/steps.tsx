@@ -1,23 +1,41 @@
 "use client";
 
 import { type UseFormRegister, type FieldErrors } from "react-hook-form";
-import { Field, Input, Select, Checkbox } from "@/components/ui/Field";
-import { formOptions, callSlots, legal } from "@/lib/config";
+import { Lock } from "lucide-react";
+import { Field, Input, Select } from "@/components/ui/Field";
+import { formOptions } from "@/lib/config";
 import type { ApplicationData } from "@/lib/validation";
-import { ShieldCheck } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { CalendlyEmbed } from "@/components/form/CalendlyEmbed";
 
 type Reg = UseFormRegister<ApplicationData>;
 type Errs = FieldErrors<ApplicationData>;
 
-/* ── Step 1: Contact & location ─────────────────────────────────────────── */
-export function StepContact({
-  register,
-  errors,
+function SectionBlock({
+  number,
+  title,
+  children,
 }: {
-  register: Reg;
-  errors: Errs;
+  number: string;
+  title: string;
+  children: React.ReactNode;
 }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-950 text-xs font-semibold text-white">
+          {number}
+        </span>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-950">
+          {title}
+        </h3>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
+    </div>
+  );
+}
+
+/* ── Step 1: Contact ─────────────────────────────────────────────────────── */
+export function StepContact({ register, errors }: { register: Reg; errors: Errs }) {
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
       <Field label="First name" htmlFor="firstName" required error={errors.firstName?.message}>
@@ -28,12 +46,11 @@ export function StepContact({
         <Input id="lastName" autoComplete="family-name" hasError={!!errors.lastName}
           {...register("lastName")} />
       </Field>
-      <Field label="Email" htmlFor="email" required error={errors.email?.message}>
+      <Field label="Email address" htmlFor="email" required error={errors.email?.message}>
         <Input id="email" type="email" inputMode="email" autoComplete="email"
           hasError={!!errors.email} {...register("email")} />
       </Field>
-      <Field label="Phone" htmlFor="phone" required error={errors.phone?.message}
-        hint="US number — formatting is automatic.">
+      <Field label="Phone (US)" htmlFor="phone" required error={errors.phone?.message}>
         <Input id="phone" type="tel" inputMode="tel" autoComplete="tel"
           placeholder="(555) 123-4567" hasError={!!errors.phone} {...register("phone")} />
       </Field>
@@ -41,193 +58,154 @@ export function StepContact({
         <Select id="state" options={formOptions.states} hasError={!!errors.state}
           {...register("state")} />
       </Field>
-      <Field label="Preferred contact method" htmlFor="preferredContact" required
-        error={errors.preferredContact?.message}>
-        <Select id="preferredContact" options={formOptions.contactMethods}
-          hasError={!!errors.preferredContact} {...register("preferredContact")} />
+      <Field label="Telegram (optional)" htmlFor="telegram" error={errors.telegram?.message}
+        hint="Your @username for quick updates.">
+        <Input id="telegram" autoComplete="off" placeholder="@username"
+          hasError={!!errors.telegram} {...register("telegram")} />
       </Field>
-      <Field label="How did you hear about us?" htmlFor="referralSource"
+      <Field label="How did you hear about us?" htmlFor="referralSource" required
         className="sm:col-span-2" error={errors.referralSource?.message}>
-        <Select id="referralSource" options={formOptions.referralSources}
-          hasError={!!errors.referralSource} {...register("referralSource")} />
+        <Select id="referralSource" placeholder="Select source"
+          options={formOptions.referralSources} hasError={!!errors.referralSource}
+          {...register("referralSource")} />
       </Field>
 
-      {/* Honeypot — visually hidden, off-screen, not announced. */}
       <div aria-hidden className="absolute left-[-9999px] top-[-9999px] h-0 w-0 overflow-hidden">
-        <label htmlFor="website">Website (leave blank)</label>
+        <label htmlFor="website">Website (do not fill)</label>
         <input id="website" type="text" tabIndex={-1} autoComplete="off"
           {...register("website")} />
       </div>
 
-      <p className="sm:col-span-2 flex items-start gap-2 text-xs leading-relaxed text-slate-400">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan" />
-        {legal.privacyNotice}
+      <p className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-500">
+        <Lock className="h-3.5 w-3.5 shrink-0 text-cyan" aria-hidden />
+        SSL · No SSN · No credit hit · ~60 sec
       </p>
     </div>
   );
 }
 
-/* ── Step 2: Eligibility profile ────────────────────────────────────────── */
-export function StepEligibility({
-  register,
-  errors,
-}: {
-  register: Reg;
-  errors: Errs;
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-      <Field label="Age range" htmlFor="ageRange" required error={errors.ageRange?.message}>
-        <Select id="ageRange" options={formOptions.ageRanges} hasError={!!errors.ageRange}
-          {...register("ageRange")} />
-      </Field>
-      <Field label="Approximate credit score" htmlFor="creditRange" required
-        error={errors.creditRange?.message}>
-        <Select id="creditRange" options={formOptions.creditRanges}
-          hasError={!!errors.creditRange} {...register("creditRange")} />
-      </Field>
-      <Field label="Annual income range" htmlFor="incomeRange" required
-        error={errors.incomeRange?.message}>
-        <Select id="incomeRange" options={formOptions.incomeRanges}
-          hasError={!!errors.incomeRange} {...register("incomeRange")} />
-      </Field>
-      <Field label="Business / merchant experience" htmlFor="experience" required
-        error={errors.experience?.message}>
-        <Select id="experience" options={formOptions.experienceLevels}
-          hasError={!!errors.experience} {...register("experience")} />
-      </Field>
-      <Field label="Availability for review calls" htmlFor="callAvailability" required
-        className="sm:col-span-2" error={errors.callAvailability?.message}>
-        <Select id="callAvailability" options={formOptions.callAvailability}
-          hasError={!!errors.callAvailability} {...register("callAvailability")} />
-      </Field>
-
-      <div className="sm:col-span-2 space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-        <Checkbox label="I confirm I am a U.S. resident."
-          error={errors.usResident?.message} {...register("usResident")} />
-        <Checkbox label="I understand the information I provide must be accurate."
-          error={errors.accurateInfo?.message} {...register("accurateInfo")} />
-      </div>
-    </div>
-  );
-}
-
-/* ── Step 3: Documents readiness & consent ──────────────────────────────── */
-export function StepDocuments({
-  register,
-  errors,
-}: {
-  register: Reg;
-  errors: Errs;
-}) {
+/* ── Step 2: Qualification (11 questions) ────────────────────────────────── */
+export function StepQualification({ register, errors }: { register: Reg; errors: Errs }) {
   return (
     <div className="space-y-5">
-      <p className="text-sm text-slate-400">
-        No documents are uploaded now. We only request these later, and only if
-        your application is eligible.
-      </p>
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <Field label="Government ID ready?" htmlFor="idReady" error={errors.idReady?.message}>
-          <Select id="idReady" options={formOptions.readiness} hasError={!!errors.idReady}
-            {...register("idReady")} />
-        </Field>
-        <Field label="Proof of address ready?" htmlFor="addressReady"
-          error={errors.addressReady?.message}>
-          <Select id="addressReady" options={formOptions.readiness}
-            hasError={!!errors.addressReady} {...register("addressReady")} />
-        </Field>
-        <Field label="Recent bank statements ready?" htmlFor="bankStatementsReady"
-          error={errors.bankStatementsReady?.message}>
-          <Select id="bankStatementsReady" options={formOptions.readiness}
-            hasError={!!errors.bankStatementsReady} {...register("bankStatementsReady")} />
-        </Field>
-        <Field label="Tax documents ready?" htmlFor="taxDocsReady"
-          error={errors.taxDocsReady?.message}>
-          <Select id="taxDocsReady" options={formOptions.readiness}
-            hasError={!!errors.taxDocsReady} {...register("taxDocsReady")} />
-        </Field>
-        <Field label="Business / entity documents ready? (if applicable)"
-          htmlFor="entityDocsReady" className="sm:col-span-2"
-          error={errors.entityDocsReady?.message}>
-          <Select id="entityDocsReady" options={formOptions.readiness}
-            hasError={!!errors.entityDocsReady} {...register("entityDocsReady")} />
-        </Field>
-      </div>
+      <p className="text-sm text-slate-600">Please answer all 11 questions to continue.</p>
 
-      <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-        <Checkbox label="I consent to Apex Process reviewing my application."
-          error={errors.consentReview?.message} {...register("consentReview")} />
-        <Checkbox label="I have read and accept the Privacy Policy."
-          error={errors.consentPrivacy?.message} {...register("consentPrivacy")} />
-        <Checkbox
-          label="I understand this is an application review, not a guarantee of approval or income."
-          error={errors.acknowledgeNoGuarantee?.message}
-          {...register("acknowledgeNoGuarantee")} />
-      </div>
+      <SectionBlock number="1" title="Financial qualification">
+        <Field label="Credit score" htmlFor="creditRange" required error={errors.creditRange?.message}>
+          <Select id="creditRange" placeholder="Select credit score"
+            options={formOptions.creditRanges} hasError={!!errors.creditRange}
+            {...register("creditRange")} />
+        </Field>
+        <Field label="Annual income" htmlFor="incomeRange" required error={errors.incomeRange?.message}>
+          <Select id="incomeRange" placeholder="Select income range"
+            options={formOptions.incomeRanges} hasError={!!errors.incomeRange}
+            {...register("incomeRange")} />
+        </Field>
+        <Field label="Age range" htmlFor="ageRange" required error={errors.ageRange?.message}>
+          <Select id="ageRange" placeholder="Select age range"
+            options={formOptions.ageRanges} hasError={!!errors.ageRange}
+            {...register("ageRange")} />
+        </Field>
+        <Field label="Have you ever had a merchant account?" htmlFor="merchantAccount" required
+          error={errors.merchantAccount?.message}>
+          <Select id="merchantAccount" placeholder="Select an answer"
+            options={formOptions.merchantAccount} hasError={!!errors.merchantAccount}
+            {...register("merchantAccount")} />
+        </Field>
+      </SectionBlock>
+
+      <SectionBlock number="2" title="Background check">
+        <Field label="Bankruptcy / liens (5y)" htmlFor="bankruptcyLiens" required
+          error={errors.bankruptcyLiens?.message}>
+          <Select id="bankruptcyLiens" placeholder="Answer"
+            options={formOptions.yesNo} hasError={!!errors.bankruptcyLiens}
+            {...register("bankruptcyLiens")} />
+        </Field>
+        <Field label="Convicted felony" htmlFor="convictedFelony" required
+          error={errors.convictedFelony?.message}>
+          <Select id="convictedFelony" placeholder="Answer"
+            options={formOptions.yesNo} hasError={!!errors.convictedFelony}
+            {...register("convictedFelony")} />
+        </Field>
+        <Field label="Prior IBO program" htmlFor="priorIboProgram" required
+          error={errors.priorIboProgram?.message}>
+          <Select id="priorIboProgram" placeholder="Answer"
+            options={formOptions.yesNo} hasError={!!errors.priorIboProgram}
+            {...register("priorIboProgram")} />
+        </Field>
+        <Field label="Reseller in household" htmlFor="resellerInHousehold" required
+          error={errors.resellerInHousehold?.message}>
+          <Select id="resellerInHousehold" placeholder="Answer"
+            options={formOptions.yesNo} hasError={!!errors.resellerInHousehold}
+            {...register("resellerInHousehold")} />
+        </Field>
+      </SectionBlock>
+
+      <SectionBlock number="3" title="Operational readiness">
+        <Field label="3 months of bank statements (account active)" htmlFor="bankStatements" required
+          error={errors.bankStatements?.message}>
+          <Select id="bankStatements" placeholder="Select an answer"
+            options={formOptions.bankStatements} hasError={!!errors.bankStatements}
+            {...register("bankStatements")} />
+        </Field>
+        <Field label="Can you commit 1–2 hours per day?" htmlFor="dailyCommitment" required
+          error={errors.dailyCommitment?.message}>
+          <Select id="dailyCommitment" placeholder="Select an answer"
+            options={formOptions.dailyCommitment} hasError={!!errors.dailyCommitment}
+            {...register("dailyCommitment")} />
+        </Field>
+        <p className="sm:col-span-2 text-xs leading-relaxed text-slate-500">
+          Mostly for paperwork review and bank notifications — never operational work.
+        </p>
+      </SectionBlock>
+
+      <p className="flex items-center gap-2 text-xs text-slate-500">
+        <Lock className="h-3.5 w-3.5 shrink-0 text-cyan" aria-hidden />
+        Soft credit pull only — no impact on your score
+      </p>
     </div>
   );
 }
 
-/* ── Step 4: Discovery call ─────────────────────────────────────────────── */
-export function StepCall({
-  selected,
-  onSelect,
+/* ── Step 3: Calendly ────────────────────────────────────────────────────── */
+export function StepSchedule({
+  name,
+  email,
+  onScheduled,
   error,
+  submitting,
 }: {
-  selected: string;
-  onSelect: (id: string) => void;
+  name?: string;
+  email?: string;
+  onScheduled: (payload: { uri: string; startTime?: string }) => void;
   error?: string;
+  submitting?: boolean;
 }) {
   return (
-    <div className="space-y-5">
-      <div>
-        <p className="text-sm text-slate-400">
-          Choose a tentative discovery-call window. This is a placeholder
-          scheduler — replace with a Calendly embed in production.
-        </p>
-      </div>
-
-      <div
-        role="radiogroup"
-        aria-label="Discovery call time"
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-      >
-        {callSlots.map((slot) => {
-          const active = selected === slot.id;
-          return (
-            <button
-              key={slot.id}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              onClick={() => onSelect(slot.id)}
-              className={cn(
-                "flex items-center justify-between rounded-xl border px-4 py-3.5 text-left text-sm transition-all duration-200",
-                active
-                  ? "border-cyan bg-cyan/10 text-white shadow-glow"
-                  : "border-white/10 bg-white/[0.02] text-slate-300 hover:border-cyan/40",
-              )}
-            >
-              <span>{slot.label}</span>
-              <span
-                className={cn(
-                  "h-4 w-4 rounded-full border-2 transition-colors",
-                  active ? "border-cyan bg-cyan" : "border-white/20",
-                )}
-              />
-            </button>
-          );
-        })}
-      </div>
-
-      {/* TODO: replace the above with a configurable Calendly embed:
-          <iframe src={process.env.NEXT_PUBLIC_CALENDLY_URL} ... /> */}
-
-      {error && (
-        <p role="alert" className="text-xs font-medium text-rose-400">
-          {error}
-        </p>
-      )}
+    <div className="space-y-4">
+      <p className="text-sm text-slate-600">
+        30-minute video call with our matching team.{" "}
+        <strong className="font-medium text-ink-950">No sales pitch</strong> — we review your
+        file together.{" "}
+        <strong className="font-medium text-ink-950">
+          Picking a time submits your application automatically.
+        </strong>
+      </p>
+      <CalendlyEmbed
+        name={name}
+        email={email}
+        onScheduled={onScheduled}
+        error={error}
+        scheduledMessage={
+          submitting
+            ? "Submitting your application…"
+            : "Call booked — submitting your application…"
+        }
+      />
+      <p className="flex items-center gap-2 text-xs text-slate-500">
+        <Lock className="h-3.5 w-3.5 shrink-0 text-cyan" aria-hidden />
+        Secured by Calendly · calendar invite sent automatically · cancel anytime
+      </p>
     </div>
   );
 }
